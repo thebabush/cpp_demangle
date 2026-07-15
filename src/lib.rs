@@ -344,6 +344,10 @@ pub enum DemangleNodeType {
     Namespace,
     /// Entering a function's parameter list.
     FunctionParams,
+    /// Entering the enclosing entity of a `<local-name>` (the scope a local
+    /// function/lambda/static is defined in), e.g. `foo(int)` in
+    /// `foo(int)::$_0::bar`.
+    LocalName,
     /// Additional values may be added in the future. Use a
     /// _ pattern for compatibility.
     __NonExhaustive,

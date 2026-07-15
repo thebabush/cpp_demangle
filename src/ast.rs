@@ -7506,17 +7506,26 @@ where
         ctx.show_params = true;
         let ret = match *self {
             LocalName::Relative(ref encoding, Some(ref name), _) => {
+                ctx.push_demangle_node(DemangleNodeType::LocalName);
                 encoding.demangle(ctx, scope)?;
+                ctx.pop_demangle_node();
                 write!(ctx, "::")?;
                 name.demangle(ctx, scope)
             }
             LocalName::Relative(ref encoding, None, _) => {
                 // No name means that this is the symbol for a string literal.
+                ctx.push_demangle_node(DemangleNodeType::LocalName);
                 encoding.demangle(ctx, scope)?;
+                ctx.pop_demangle_node();
                 write!(ctx, "::string literal")?;
                 Ok(())
             }
-            LocalName::Default(ref encoding, _, _) => encoding.demangle(ctx, scope),
+            LocalName::Default(ref encoding, _, _) => {
+                ctx.push_demangle_node(DemangleNodeType::LocalName);
+                encoding.demangle(ctx, scope)?;
+                ctx.pop_demangle_node();
+                Ok(())
+            }
         };
         ctx.show_params = saved_show_params;
         ret
