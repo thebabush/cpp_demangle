@@ -348,6 +348,10 @@ pub enum DemangleNodeType {
     /// function/lambda/static is defined in), e.g. `foo(int)` in
     /// `foo(int)::$_0::bar`.
     LocalName,
+    /// Entering a single argument of a function parameter list or a template
+    /// argument list — one node per top-level argument, so consumers get exact
+    /// argument boundaries without parsing the `, `-separated text themselves.
+    Argument,
     /// Additional values may be added in the future. Use a
     /// _ pattern for compatibility.
     __NonExhaustive,

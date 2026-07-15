@@ -1052,7 +1052,9 @@ where
             if need_comma {
                 write!(ctx, ", ")?;
             }
+            ctx.push_demangle_node(DemangleNodeType::Argument);
             arg.demangle(ctx, scope)?;
+            ctx.pop_demangle_node();
             need_comma = true;
         }
 
@@ -5688,7 +5690,9 @@ where
             if let Some(ref mut scope) = scope {
                 scope.in_arg = Some((arg_index, self));
             }
+            ctx.push_demangle_node(DemangleNodeType::Argument);
             self.args[arg_index].demangle(ctx, scope)?;
+            ctx.pop_demangle_node();
             need_comma = true;
         }
 
