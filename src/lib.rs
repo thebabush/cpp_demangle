@@ -338,6 +338,12 @@ pub enum DemangleNodeType {
     VirtualTable,
     /// Entering a <clone-suffix> production.
     CloneSuffix,
+    /// Entering a function's return type.
+    ReturnType,
+    /// Entering a `std::` namespace qualifier printed from an `St` substitution.
+    Namespace,
+    /// Entering a function's parameter list.
+    FunctionParams,
     /// Additional values may be added in the future. Use a
     /// _ pattern for compatibility.
     __NonExhaustive,

@@ -1521,7 +1521,9 @@ where
                 let scope = if let Some(template_args) = name.get_template_args(ctx.subs) {
                     let scope = scope.push(template_args);
                     if ctx.show_return_type && !name.is_ctor_dtor_conversion(ctx.subs) {
+                        ctx.push_demangle_node(DemangleNodeType::ReturnType);
                         fun_ty.0[0].demangle(ctx, scope)?;
+                        ctx.pop_demangle_node();
                         write!(ctx, " ")?;
                     }
 
@@ -1567,7 +1569,10 @@ where
                     let function_args = FunctionArgList::new(&fun_ty.0);
                     (scope, function_args as &dyn DemangleAsInner<W>)
                 };
-            function_args.demangle_as_inner(ctx, scope)
+            ctx.push_demangle_node(DemangleNodeType::FunctionParams);
+            function_args.demangle_as_inner(ctx, scope)?;
+            ctx.pop_demangle_node();
+            Ok(())
         } else {
             unreachable!("we only push Encoding::Function onto the inner stack");
         }
@@ -1864,7 +1869,10 @@ where
         match *self {
             UnscopedName::Unqualified(ref unqualified) => unqualified.demangle(ctx, scope),
             UnscopedName::Std(ref std) => {
-                write!(ctx, "std::")?;
+                ctx.push_demangle_node(DemangleNodeType::Namespace);
+                write!(ctx, "std")?;
+                ctx.pop_demangle_node();
+                write!(ctx, "::")?;
                 std.demangle(ctx, scope)
             }
         }
