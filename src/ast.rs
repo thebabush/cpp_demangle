@@ -4686,6 +4686,7 @@ where
     ) -> fmt::Result {
         let ctx = try_begin_demangle!(self, ctx, scope);
 
+        ctx.push_demangle_node(DemangleNodeType::FunctionType);
         ctx.push_inner(self);
         self.bare.demangle(ctx, scope)?;
         if ctx.pop_inner_if(self) {
@@ -4696,6 +4697,7 @@ where
             ctx.ensure_space()?;
             es.demangle(ctx, scope)?;
         }
+        ctx.pop_demangle_node();
         Ok(())
     }
 }

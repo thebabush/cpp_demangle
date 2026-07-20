@@ -352,6 +352,10 @@ pub enum DemangleNodeType {
     /// argument list — one node per top-level argument, so consumers get exact
     /// argument boundaries without parsing the `, `-separated text themselves.
     Argument,
+    /// Entering a `<function-type>` production — a function type used as a
+    /// type (a function pointer/reference target, `std::function<...>` argument,
+    /// etc.), as opposed to the top-level function `<encoding>`.
+    FunctionType,
     /// Additional values may be added in the future. Use a
     /// _ pattern for compatibility.
     __NonExhaustive,
