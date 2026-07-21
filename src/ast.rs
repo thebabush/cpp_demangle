@@ -4074,7 +4074,17 @@ where
 
         match *self {
             Type::Qualified(ref quals, _) => quals.demangle_as_inner(ctx, scope),
-            Type::PointerTo(_) => write!(ctx, "*"),
+            // Mark the declarator punctuation as its own node (structural-only: same
+            // string, node boundaries added), so a structured consumer gets `*`/`&`
+            // as a `Pointer`/`Reference` instead of text glued onto the preceding
+            // name. The reference-merge loops run *before* the write, so they stay
+            // outside the marked node.
+            Type::PointerTo(_) => {
+                ctx.push_demangle_node(DemangleNodeType::Pointer);
+                write!(ctx, "*")?;
+                ctx.pop_demangle_node();
+                Ok(())
+            }
             Type::RvalueRef(_) => {
                 while let Some(v) = ctx.inner.last().and_then(|ty| ty.downcast_to_type()) {
                     match v {
@@ -4090,7 +4100,10 @@ where
                         _ => break,
                     }
                 }
-                write!(ctx, "&&")
+                ctx.push_demangle_node(DemangleNodeType::Reference);
+                write!(ctx, "&&")?;
+                ctx.pop_demangle_node();
+                Ok(())
             }
             Type::LvalueRef(_) => {
                 while let Some(v) = ctx.inner.last().and_then(|ty| ty.downcast_to_type()) {
@@ -4108,7 +4121,10 @@ where
                         _ => break,
                     }
                 }
-                write!(ctx, "&")
+                ctx.push_demangle_node(DemangleNodeType::Reference);
+                write!(ctx, "&")?;
+                ctx.pop_demangle_node();
+                Ok(())
             }
             ref otherwise => {
                 unreachable!(
@@ -4250,19 +4266,29 @@ where
     ) -> fmt::Result {
         let ctx = try_begin_demangle!(self, ctx, scope);
 
+        // Each cv-qualifier is its own `CvQualifier` node, and the separating space
+        // is written *inside* it (so a consumer that binds the qualifier onto the
+        // preceding component keeps the ` const` spacing). Structural-only: the
+        // written string is unchanged.
         if self.const_ {
+            ctx.push_demangle_node(DemangleNodeType::CvQualifier);
             ctx.ensure_space()?;
             write!(ctx, "const")?;
+            ctx.pop_demangle_node();
         }
 
         if self.volatile {
+            ctx.push_demangle_node(DemangleNodeType::CvQualifier);
             ctx.ensure_space()?;
             write!(ctx, "volatile")?;
+            ctx.pop_demangle_node();
         }
 
         if self.restrict {
+            ctx.push_demangle_node(DemangleNodeType::CvQualifier);
             ctx.ensure_space()?;
             write!(ctx, "restrict")?;
+            ctx.pop_demangle_node();
         }
 
         Ok(())
@@ -4776,9 +4802,12 @@ where
         }
 
         if let Some(ref rq) = self.ref_qualifier {
-            // Print out a space before printing "&" or "&&"
+            // Print out a space before printing "&" or "&&" — inside the `Reference`
+            // node, matching the cv-qualifier convention.
+            ctx.push_demangle_node(DemangleNodeType::Reference);
             ctx.ensure_space()?;
             rq.demangle(ctx, scope)?;
+            ctx.pop_demangle_node();
         }
 
         Ok(())
@@ -5421,7 +5450,11 @@ where
         }
 
         self.0.demangle(ctx, scope)?;
+        // The `::*` member-pointer declarator as its own `Pointer` node; the member
+        // class (`self.0`) above stays its own structured subtree.
+        ctx.push_demangle_node(DemangleNodeType::Pointer);
         write!(ctx, "::*")?;
+        ctx.pop_demangle_node();
         Ok(())
     }
 

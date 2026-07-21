@@ -356,6 +356,16 @@ pub enum DemangleNodeType {
     /// type (a function pointer/reference target, `std::function<...>` argument,
     /// etc.), as opposed to the top-level function `<encoding>`.
     FunctionType,
+    /// A cv-qualifier written onto a type — ` const` / ` volatile` / ` restrict`
+    /// (including its separating leading space), so a structured consumer gets the
+    /// qualifier as its own node instead of a text run glued onto the preceding
+    /// component.
+    CvQualifier,
+    /// A pointer declarator's `*` (or a pointer-to-member's `::*`).
+    Pointer,
+    /// A reference declarator's `&` / `&&` (lvalue/rvalue, including a function
+    /// type's trailing ref-qualifier).
+    Reference,
     /// Additional values may be added in the future. Use a
     /// _ pattern for compatibility.
     __NonExhaustive,
