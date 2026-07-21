@@ -1229,6 +1229,64 @@ impl<'a> GetLeafName<'a> for NonSubstitution {
 /// and be returned by a generated accessor. See `SimpleOperatorName` for
 /// an example.
 macro_rules! define_vocabulary {
+    // Like the plain form below, but *without* the generated `Demangle` impl — for
+    // vocabularies that need to hand-write `demangle` (e.g. to emit structured
+    // node events for a structured consumer while still writing the same string).
+    // `Parse`, the enum, and `starts_with` are generated identically.
+    ( @no_demangle $(#[$attr:meta])* pub enum $typename:ident {
+        $($variant:ident ( $mangled:expr, $printable:expr )),*
+    } ) => {
+
+        $(#[$attr])*
+        pub enum $typename {
+            $(
+                #[doc=$printable]
+                $variant
+            ),*
+        }
+
+        impl Parse for $typename {
+            fn parse<'a, 'b>(ctx: &'a ParseContext,
+                             _subs: &'a mut SubstitutionTable,
+                             input: IndexStr<'b>)
+                             -> Result<($typename, IndexStr<'b>)> {
+                try_begin_parse!(stringify!($typename), ctx, input);
+
+                let mut found_prefix = false;
+                $(
+                    if let Some((head, tail)) = input.try_split_at($mangled.len()) {
+                        if head.as_ref() == $mangled {
+                            return Ok(($typename::$variant, tail));
+                        }
+                    } else {
+                        found_prefix |= 0 < input.len() &&
+                            input.len() < $mangled.len() &&
+                            input.as_ref() == &$mangled[..input.len()];
+                    }
+                )*
+
+                if input.is_empty() || found_prefix {
+                    Err(error::Error::UnexpectedEnd)
+                } else {
+                    Err(error::Error::UnexpectedText)
+                }
+            }
+        }
+
+        impl $typename {
+            #[allow(dead_code)]
+            #[inline]
+            fn starts_with(byte: u8) -> bool {
+                $(
+                    if $mangled[0] == byte {
+                        return true;
+                    }
+                )*
+
+                false
+            }
+        }
+    };
     ( $(#[$attr:meta])* pub enum $typename:ident {
         $($variant:ident ( $mangled:expr, $printable:expr )),*
     } ) => {
@@ -7856,6 +7914,7 @@ impl Parse for Substitution {
 }
 
 define_vocabulary! {
+    @no_demangle
 /// The `<substitution>` variants that are encoded directly in the grammar,
 /// rather than as back references to other components in the substitution
 /// table.
@@ -7868,6 +7927,54 @@ define_vocabulary! {
         StdIstream   (b"Si", "std::basic_istream<char, std::char_traits<char> >"),
         StdOstream   (b"So", "std::ostream"),
         StdIostream  (b"Sd", "std::basic_iostream<char, std::char_traits<char> >")
+    }
+}
+
+impl<'subs, W> Demangle<'subs, W> for WellKnownComponent
+where
+    W: 'subs + DemangleWrite,
+{
+    fn demangle<'prev, 'ctx>(
+        &'subs self,
+        ctx: &'ctx mut DemangleContext<'subs, W>,
+        scope: Option<ArgScopeStack<'prev, 'subs>>,
+    ) -> fmt::Result {
+        let ctx = try_begin_demangle!(self, ctx, scope);
+
+        // Emit the `std` namespace as its own node, and — for the simple
+        // `std::<name>` shorthands — the component name as its own node, so a
+        // structured consumer gets punctuation-free component boundaries instead of
+        // one `std::allocator` blob it must re-split on `::`. The written string is
+        // byte-for-byte the macro's `$printable`; only node boundaries are added.
+        // `Std` is a bare namespace prefix (`std`). The two templated shorthands
+        // (`Si`/`Sd`, whose printable carries `<...>` args) stay a single write —
+        // structuring their args is not worth it for how rarely they appear.
+        let name = match *self {
+            WellKnownComponent::Std => {
+                ctx.push_demangle_node(DemangleNodeType::Namespace);
+                write!(ctx, "std")?;
+                ctx.pop_demangle_node();
+                return Ok(());
+            }
+            WellKnownComponent::StdAllocator => "allocator",
+            WellKnownComponent::StdString1 => "basic_string",
+            WellKnownComponent::StdString2 => "string",
+            WellKnownComponent::StdOstream => "ostream",
+            WellKnownComponent::StdIstream => {
+                return write!(ctx, "std::basic_istream<char, std::char_traits<char> >");
+            }
+            WellKnownComponent::StdIostream => {
+                return write!(ctx, "std::basic_iostream<char, std::char_traits<char> >");
+            }
+        };
+        ctx.push_demangle_node(DemangleNodeType::Namespace);
+        write!(ctx, "std")?;
+        ctx.pop_demangle_node();
+        write!(ctx, "::")?;
+        ctx.push_demangle_node(DemangleNodeType::UnqualifiedName);
+        write!(ctx, "{name}")?;
+        ctx.pop_demangle_node();
+        Ok(())
     }
 }
 
