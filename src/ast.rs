@@ -5921,7 +5921,12 @@ where
                     if need_comma {
                         write!(ctx, ", ")?;
                     }
+                    // Mark each expanded pack element as its own `Argument`, so a
+                    // structured consumer sees the pack as a delimited list rather
+                    // than one `, `-separated blob. Structural-only: same string.
+                    ctx.push_demangle_node(DemangleNodeType::Argument);
                     arg.demangle(ctx, scope)?;
+                    ctx.pop_demangle_node();
                     need_comma = true;
                 }
                 Ok(())
